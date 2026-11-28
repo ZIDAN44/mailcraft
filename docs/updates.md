@@ -21,7 +21,7 @@ test build.
 |---|---|
 | **Yes** (the default) | Updates as above, as the copy was installed. |
 | **Releases only** | Updates to the next release only, never to a test build, even on a copy installed as a test build. |
-| **No** | Never looks for an update nor installs one, not even one downloaded before. **Check for updates** in File › About still asks when you click it, and offers the download; nothing installs by itself. |
+| **No** | Never looks for an update nor installs one, not even one downloaded before. **Check for updates** in File › About still asks when you click it, and offers the download (on Windows the `.msi`, or the portable `.zip` for a portable copy); nothing installs by itself. |
 
 An organisation's profile can set this choice, and lock it ([`updates`](organisations.md)). Locked
 to **No**, File › About doesn't check either.
@@ -60,7 +60,9 @@ to **No**, File › About doesn't check either.
 
 ## Per platform
 
-- **Windows:** The MSI installs for all users, so approve each update as an administrator.
+- **Windows:** The MSI installs for all users, so approve each update as an administrator. A
+  portable copy (`portable.txt` beside it) updates from the portable `.zip` instead, with no
+  administrator needed, and File › About's **Check for updates** offers that `.zip` too.
 - **macOS:** Move MailCraft to **Applications** before it can update itself. On a standard
   account, use `~/Applications` instead. A copy run from the disk image or Downloads doesn't update.
   After each update, macOS asks once whether MailCraft may read its passwords from the keychain

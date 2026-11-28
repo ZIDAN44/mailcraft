@@ -47,6 +47,11 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 - `net` covers IMAP, POP3, SMTP, JMAP push, Microsoft Graph, EWS with NTLM (Windows sign-in over
   HTTP, and over IMAP, POP3 and SMTP when an account asks for it), CalDAV/CardDAV, ManageSieve,
   HTTP, DNS and OAuth.
+- The mail protocols' clients are MailCraft's own (IMAP with `imap-proto`'s parser), over one
+  connection layer, `net/src/stream.rs`: TLS through rustls, and one check of a server's
+  certificate, in the handshake, for every protocol. SMTP used `lettre` until 0.43: its strict
+  reading of replies (#309) couldn't be fixed from outside it, and it checked certificates only
+  after its own handshake.
 - `keys` is the one crate with `unsafe`. The crate denies it, and only `windows/cng.rs` and
   `macos/sec.rs` allow it.
 - `.pst` files (Outlook data files) go through MailCraft's own crate, `pst`, written from

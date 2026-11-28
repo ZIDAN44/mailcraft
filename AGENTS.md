@@ -63,7 +63,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   don't add `unsafe` anywhere else.
 - **Errors are `Result`** (`CmdError`, `NetError`, `StoreError`) through `?`.
 - **Everything from the network or disk is hostile:** IMAP responses (line and literal sizes are
-  capped in `net/src/protocols/imap.rs`), message sources, attachment pictures (decode limits in
+  capped in `net/src/protocols/imap.rs`), SMTP replies (`net/src/protocols/smtp/wire.rs`), message sources, attachment pictures (decode limits in
   `ui-egui/src/reading.rs`), cache files (a damaged file is set aside, never fatal), command params.
   Use `get()`, checked/saturating arithmetic, char-boundary slicing, caps on allocations and
   recursion.
@@ -100,7 +100,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Outlook may be **observed** black-box (screenshots of its window only, kept out of the repo).
   Never read or copy anything inside its install. Protocols come from the RFCs: IMAP 3501/9051,
   CONDSTORE/QRESYNC 7162, IDLE 2177, MOVE 6851, UIDPLUS 4315, SPECIAL-USE 6154, disconnected
-  clients 4549, message format 5322/2045–2049, submission 6409/8314, threading 5256, JMAP
+  clients 4549, message format 5322/2045–2049, SMTP 5321 (AUTH 4954, STARTTLS 3207, 8BITMIME
+  6152, SMTPUTF8 6531), submission 6409/8314, threading 5256, JMAP
   8620/8621, OAuth for native apps 8252 + PKCE 7636, SRV discovery 6186.
 - Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, Stalwart server…). Permissive crates only;
   `deny.toml` (cargo-deny, `.github/workflows/deny.yml`) checks licences, advisories and sources.
