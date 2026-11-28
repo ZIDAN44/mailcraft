@@ -64,6 +64,7 @@ on GitHub.
 
 ### Fixed
 
+- **Check for updates** in a portable copy on Windows offers the portable `.zip` to download; it offered the `.msi`, which installs a second MailCraft in Program Files rather than updating the portable one (#260).
 - The reading pane drew two lines, one under the other, between a message's header and its text.
 - A message marked read, flagged or complete stays so when another program (an antivirus, the search indexer) holds MailCraft's copy of its folder for a few seconds as it's saved: past a second the change was undone, a message marked complete coming back flagged.
 - The File page's **About** read like **Info** beside it: the same word in Dutch and Polish, "Info" beside "Informationen" in German, "Informazioni" beside "Info" in Italian. It's "Über MailCraft", "Over MailCraft", "O programie" and "Informazioni su MailCraft" now, and Italian's Info is "Account".

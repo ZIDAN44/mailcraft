@@ -249,13 +249,22 @@ pub fn rate_limited(reset: Option<&str>, now: u64) -> String {
 /// The installer for this system among a release's files (by the end of its name), when there
 /// is one to offer: Linux and the BSDs install in many ways, so their users get the page.
 fn asset_suffix() -> Option<&'static str> {
+    let exe_dir = std::env::current_exe().ok().and_then(|exe| exe.parent().map(std::path::Path::to_path_buf));
+    asset_suffix_for(exe_dir.is_some_and(|dir| mailcraft_store::location::portable_data(&dir).is_some()))
+}
+
+/// [`asset_suffix`], for a portable copy or not: on Windows a portable copy is offered the
+/// portable `.zip`, as it updates itself from (issue #260: Check for updates offered it the
+/// `.msi`, which installs a second MailCraft in Program Files rather than updating this one).
+fn asset_suffix_for(portable: bool) -> Option<&'static str> {
     if cfg!(target_os = "windows") {
-        Some(if cfg!(target_arch = "aarch64") {
-            "-windows-arm64.msi"
-        } else if cfg!(target_arch = "x86") {
-            "-windows-x86.msi"
-        } else {
-            "-windows-x64.msi"
+        Some(match (portable, cfg!(target_arch = "aarch64"), cfg!(target_arch = "x86")) {
+            (true, true, _) => "-windows-arm64-portable.zip",
+            (true, _, true) => "-windows-x86-portable.zip",
+            (true, ..) => "-windows-x64-portable.zip",
+            (false, true, _) => "-windows-arm64.msi",
+            (false, _, true) => "-windows-x86.msi",
+            (false, ..) => "-windows-x64.msi",
         })
     } else if cfg!(target_os = "macos") {
         Some("-macos-universal.dmg")
@@ -433,6 +442,11 @@ mod tests {
         assert_eq!(expected_sum_with(&[], msi).unwrap(), msi.sha256);
         assert!(expected_sum(msi).unwrap_err().to_string().contains("isn't signed"), "built with the project's key");
         let zip = &parse(body, Some("-windows-x64-portable.zip")).unwrap()[0];
+        // What Check for updates offers: a portable copy, the portable .zip (#260: the .msi).
+        if cfg!(all(windows, target_arch = "x86_64")) {
+            assert!(parse(body, asset_suffix_for(true)).unwrap()[0].download.ends_with("-windows-x64-portable.zip"));
+            assert!(parse(body, asset_suffix_for(false)).unwrap()[0].download.ends_with("-windows-x64.msi"));
+        }
         assert_eq!((zip.sha256.as_str(), zip.size), ("", 9), "a digest of another kind isn't taken");
         let sums = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  mailcraft-0.21.0-windows-x64.msi\n\
                     E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855 *mailcraft-0.21.0-windows-x64-portable.zip\n\
