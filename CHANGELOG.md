@@ -64,6 +64,7 @@ on GitHub.
 
 ### Fixed
 
+- A file is saved and opened as it was sent when a mail gateway wrote its footer ("Scanned by …") after it in the message: the footer's letters were added to the end of the file, so a document could fail to open, and a file sent without a type was saved as its encoded text.
 - **Check for updates** in a portable copy on Windows offers the portable `.zip` to download; it offered the `.msi`, which installs a second MailCraft in Program Files rather than updating the portable one (#260).
 - The reading pane drew two lines, one under the other, between a message's header and its text.
 - A message marked read, flagged or complete stays so when another program (an antivirus, the search indexer) holds MailCraft's copy of its folder for a few seconds as it's saved: past a second the change was undone, a message marked complete coming back flagged.

@@ -188,3 +188,40 @@ proptest! {
         prop_assert_eq!(attachment_data(&raw, 0), Some(data));
     }
 }
+
+/// Found working on #260: a mail gateway that writes its footer into the message's last part
+/// ("Scanned by …") wrote it after a file's base64, and the file came out with the footer's
+/// letters decoded onto its end (a document Word then wouldn't open). Base64 ends at its
+/// padding (RFC 2045: "=" is used only at the end of the data), so what follows isn't the file.
+/// A file sent with no type (taken for text) came out as its base64 source instead.
+#[test]
+fn a_footer_after_a_files_base64_isnt_the_file() {
+    // 300,001 bytes: padded with one "=".
+    let data: Vec<u8> = (0..300_001u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 24) as u8).collect();
+    let body = format!("{}\r\n\r\nScanned by Gateway", base64(&data));
+    let docx =
+        "Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document; name=\"r.docx\"\r\nContent-Transfer-Encoding: base64";
+    let raw = message(&[(docx.into(), body.clone().into_bytes())]);
+    assert!(attachment_data(&raw, 0) == Some(data.clone()), "the file as sent");
+    let mut moved = Vec::new();
+    attachments_moved(&raw, &[0], &mut |_, d| moved.push(d));
+    assert!(moved == [data.clone()], "saved with the others");
+    // No type at all: text, as RFC 2045 has it, and still the file.
+    let untyped = "Content-Disposition: attachment; filename=\"r.docx\"\r\nContent-Transfer-Encoding: base64";
+    let raw = message(&[(untyped.into(), body.into_bytes())]);
+    assert!(attachment_data(&raw, 0) == Some(data.clone()), "an untyped file as sent");
+    // Text sent as base64 by mistake, an "=" in its words, is left to the reading it had.
+    let mistaken = "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64";
+    let raw = message(&[(mistaken.into(), b"Total = 12 boxes, see you Monday".to_vec())]);
+    let m = mail_parser::MessageParser::default().parse(&raw[..]).unwrap();
+    let part = m.parts().find(|p| p.raw_body().starts_with(b"Total")).unwrap();
+    assert_eq!(crate::parts::padded_base64(part), None, "not base64 before its \"=\"");
+    // Base64 in padded pieces, one after another, is still read whole.
+    let pieces = format!("{}\r\n{}", base64(b"one"), base64(b"two!"));
+    let raw = message(&[(docx.into(), pieces.into_bytes())]);
+    assert_eq!(attachment_data(&raw, 0).as_deref(), Some(&b"onetwo!"[..]));
+    // Base64 with nothing after it, unpadded, is read as it was.
+    let even: Vec<u8> = data[..300_000].to_vec();
+    let raw = message(&[(docx.into(), base64(&even).into_bytes())]);
+    assert!(attachment_data(&raw, 0) == Some(even), "unpadded");
+}

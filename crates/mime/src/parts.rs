@@ -30,8 +30,37 @@ pub(crate) fn contents<'m>(p: MessagePart<'m>) -> Cow<'m, [u8]> {
             }
         }
         PartKind::Multipart => Cow::Borrowed(&[]),
-        PartKind::Binary | PartKind::InlineBinary | PartKind::Message(_) => p.decoded(),
+        PartKind::Binary | PartKind::InlineBinary => padded_base64(p).map_or_else(|| p.decoded(), Cow::Owned),
+        PartKind::Message(_) => p.decoded(),
     }
+}
+
+/// A base64 part's bytes when something follows its padding: base64 ends there (RFC 2045: "="
+/// is used only at the end of the data), and what follows isn't the part's (a footer a mail
+/// gateway writes into the message's last part, "Scanned by …"). mail-parser decoded on past
+/// it, and the footer's letters came out at the end of the file (#260). `None` for any other
+/// part, which mail-parser decodes as it is.
+pub(crate) fn padded_base64(p: MessagePart<'_>) -> Option<Vec<u8>> {
+    if p.encoding() != Encoding::Base64 {
+        return None;
+    }
+    let raw = p.raw_body();
+    let pad = raw.iter().position(|&b| b == b'=')?;
+    let end = pad + raw.get(pad..)?.iter().take(2).take_while(|&&b| b == b'=').count();
+    // Nothing after the padding but line ends, or more base64 (a program that writes it in
+    // padded pieces, one after another): mail-parser's own reading is right. Words, with their
+    // spaces and stops, aren't base64.
+    let base64_line = |line: &[u8]| line.trim_ascii().iter().all(|&b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='));
+    if raw.get(end..)?.split(|&b| b == b'\n').all(base64_line) {
+        return None;
+    }
+    // Words before it too: never base64 (text sent as base64 by mistake, which mail-parser's
+    // reading, or its source, shows best).
+    if !raw.get(..end)?.split(|&b| b == b'\n').all(base64_line) {
+        return None;
+    }
+    let clean: Vec<u8> = raw.get(..end)?.iter().copied().filter(|b| !b.is_ascii_whitespace()).collect();
+    encodify::base64::LENIENT.decode(&clean).ok()
 }
 
 /// A text part's bytes, the transfer encoding undone. One whose base64 can't be read is its
@@ -40,6 +69,10 @@ pub(crate) fn contents<'m>(p: MessagePart<'m>) -> Cow<'m, [u8]> {
 fn text_bytes(p: MessagePart<'_>) -> Cow<'_, [u8]> {
     if p.encoding() != Encoding::Base64 {
         return p.decoded();
+    }
+    // A footer after its padding isn't the text's, nor a sign it was never base64.
+    if let Some(bytes) = padded_base64(p) {
+        return Cow::Owned(bytes);
     }
     match p.decoded_checked() {
         (_, problems) if problems.contains(DecodeProblems::MALFORMED_TRANSFER_ENCODING) => Cow::Borrowed(p.raw_body()),
