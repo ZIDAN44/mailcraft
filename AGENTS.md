@@ -217,6 +217,10 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   `--cmd ui.addAccount`, `--cmd ui.file` / `ui.options` / `ui.about` (the File page).
 - For UI work, look at the result: screenshot **the MailCraft window only** and read the PNG.
 - Headless frames: `crates/ui-egui/src/tests.rs` renders every pane layout and dialog.
+- Every dialog in the real window: `cargo run -p mailcraft --features screens -- --sample --cmd
+  'screens.dialog={"i":7}'` opens dialog 7 of all of them, filled in (`ui-egui/src/screens.rs`), for
+  screenshots before and after a change. A tool for working on MailCraft: releases build with no
+  features, so it's never in one.
 - Browser: `trunk serve` in `apps/mailcraft-web`, then `/?sample`; a local JMAP server with CORS:
   `cargo test -p mailcraft-net serve_for_the_browser -- --ignored` (`me@studio.example` / `pw`).
   Portable code must not read the clock or temporary files: std panics there on wasm32.

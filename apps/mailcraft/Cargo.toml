@@ -12,6 +12,11 @@ default-run = "mailcraft"
 [lints]
 workspace = true
 
+[features]
+# `--cmd 'screens.dialog={"i":N}'` opens dialog N of every dialog, for screenshots
+# (`cargo build -p mailcraft --features screens`). Releases build with no features, so without it.
+screens = ["mailcraft-ui-egui/screens"]
+
 [dependencies]
 # The update's file flushed as the cache's are (a plain flush where a Mac refuses the full one).
 craft-atomic = { workspace = true }

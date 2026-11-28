@@ -10,6 +10,11 @@ description = "MailCraft egui front end (folders, message list, reading pane, co
 [lints]
 workspace = true
 
+[features]
+# Every dialog opened by number (`screens::dialog`), for screenshots of the whole interface
+# before and after a change. A tool for the people working on MailCraft, never in a release.
+screens = []
+
 [dependencies]
 mailcraft-engine = { workspace = true }
 # egui's emoji and symbol fonts, as egui had them by default before 0.37: emoji in subjects and

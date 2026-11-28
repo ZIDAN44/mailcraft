@@ -15,7 +15,9 @@ fn ui_sources() -> Vec<String> {
                 if name != "tests" {
                     walk(&p, out);
                 }
-            } else if name.ends_with(".rs") && name != "tests.rs" {
+            // Not `screens.rs`: what it writes is made-up content the dialogs are filled with for
+            // screenshots (an error a server sent, a file's name), never the interface's wording.
+            } else if name.ends_with(".rs") && name != "tests.rs" && name != "screens.rs" {
                 out.push(std::fs::read_to_string(&p).unwrap_or_default());
             }
         }

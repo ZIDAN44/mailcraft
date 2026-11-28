@@ -86,6 +86,12 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                 let k = p.get("keyword").and_then(|v| v.as_str()).unwrap_or_default();
                 app.ui.dialog = Some(mailcraft_ui_egui::Dialog::name_keyword(k));
             }
+            // Every dialog, one by one, for screenshots: a build with the `screens` feature only.
+            #[cfg(feature = "screens")]
+            "screens.dialog" => {
+                let i = p.get("i").and_then(serde_json::Value::as_u64).and_then(|i| usize::try_from(i).ok()).unwrap_or(usize::MAX);
+                app.ui.dialog = mailcraft_ui_egui::screens::dialog(app, i);
+            }
             _ => app.run(id, p),
         }
     }

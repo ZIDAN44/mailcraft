@@ -100,4 +100,6 @@ The values live in `crates/ui-egui/src/look/sizes.rs`; the helpers named here ar
 
 A change to the interface is looked at in the real app, light and dark, and in German (the longest
 labels), as well as tested: `crates/ui-egui/src/tests.rs` draws every pane and dialog headless, and
-the tests read what's drawn (`drawn_text`) and what a screen reader is told.
+the tests read what's drawn (`drawn_text`) and what a screen reader is told. A build with the
+`screens` feature opens any dialog by number, filled in, for screenshots of every one
+(`screens::tests::every_dialog_is_on_the_list` keeps a new dialog from being left out).

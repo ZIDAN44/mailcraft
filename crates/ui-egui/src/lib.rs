@@ -30,6 +30,9 @@ mod look;
 mod panes;
 mod reading;
 mod rich_edit;
+/// Every dialog, for screenshots: in the tests, and in the app with `--features screens` alone.
+#[cfg(any(test, feature = "screens"))]
+pub mod screens;
 mod services;
 
 // Each part by its own name, wherever its file sits (`crate::list`, `mailcraft_ui_egui::theme`).
