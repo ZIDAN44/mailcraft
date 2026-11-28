@@ -85,7 +85,7 @@ fn a_certificate_the_system_distrusts_is_refused() {
     assert!(intermediate_distrusted.contains("Revoked"), "{intermediate_distrusted}");
 }
 
-/// A chain another TLS stack was given (lettre's) gets the same verdicts as a handshake.
+/// A chain checked on its own gets the same verdicts as a handshake.
 #[test]
 fn a_chain_from_elsewhere_is_checked_the_same_way() {
     let chain = vec![via_issuing().to_vec(), issuing_ca().to_vec()];

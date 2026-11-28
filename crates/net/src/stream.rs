@@ -14,7 +14,7 @@ use crate::{NetError, Result};
 pub(crate) mod binding;
 pub(crate) mod trust;
 pub use trust::Trusted;
-pub(crate) use trust::{system_roots, system_verifier};
+pub(crate) use trust::system_verifier;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 pub const IO_TIMEOUT: Duration = Duration::from_secs(60);
@@ -75,7 +75,7 @@ impl Timeouts for TcpStream {
 }
 
 /// What every TLS connection trusts: the bundled Mozilla roots and the system's, less what the
-/// system distrusts ([`trust`]). SMTP's lettre checks the same way ([`trust::check_chain`]).
+/// system distrusts ([`trust`]).
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static CONFIG: OnceLock<std::result::Result<Arc<ClientConfig>, String>> = OnceLock::new();
     CONFIG.get_or_init(|| trust::system_verifier().and_then(trust::client_config)).clone().map_err(NetError::Tls)
@@ -228,16 +228,24 @@ pub fn starttls(plain: Stream, unread: usize, host: &str, trusted: Trusted<'_>) 
 /// The handshake of [`tls`] (`trusted` is `None`: a web address, checked as ever, wherever it
 /// is) and of [`tls_trusting`].
 fn handshake(sock: TcpStream, host: &str, trusted: Option<Trusted<'_>>) -> Result<Stream> {
-    let name = ServerName::try_from(host.to_string()).map_err(|e| NetError::Tls(format!("{host}: {e}")))?;
+    match trusted {
+        Some(trusted) => tls_checked(sock, host, trust::system_verifier().map_err(NetError::Tls)?, trusted),
+        None => secure(sock, host, tls_config()?, None),
+    }
+}
+
+/// [`tls_trusting`], the usual check being `usual` (the system's, or a test's stand-in for it).
+pub(crate) fn tls_checked(sock: TcpStream, host: &str, usual: Arc<trust::Distrusting>, trusted: Trusted<'_>) -> Result<Stream> {
     let here = sock.peer_addr().is_ok_and(|a| on_this_computer(a.ip()));
-    let local = trusted.map(|trusted| trust::system_verifier().map(|usual| trust::Own::new(usual, trusted, host, here)));
-    let (config, local) = match local {
-        Some(check) => {
-            let check = check.map_err(NetError::Tls)?;
-            (trust::client_config(Arc::clone(&check)).map_err(NetError::Tls)?, Some(check))
-        }
-        None => (tls_config()?, None),
-    };
+    let check = trust::Own::new(usual, trusted, host, here);
+    let config = trust::client_config(Arc::clone(&check)).map_err(NetError::Tls)?;
+    secure(sock, host, config, Some(check))
+}
+
+/// The handshake itself, `config` checking the server's certificates; `local`, the account's
+/// own check, says which certificate it refused, for the user to be asked.
+fn secure(sock: TcpStream, host: &str, config: Arc<ClientConfig>, local: Option<Arc<trust::Own>>) -> Result<Stream> {
+    let name = ServerName::try_from(host.to_string()).map_err(|e| NetError::Tls(format!("{host}: {e}")))?;
     let conn = ClientConnection::new(config, name).map_err(|e| NetError::Tls(e.to_string()))?;
     let mut s = StreamOwned::new(conn, sock);
     // Finish the handshake now so certificate problems surface as TLS errors, not later I/O.

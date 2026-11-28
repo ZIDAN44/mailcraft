@@ -1183,12 +1183,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "email_address"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e079f19b08ca6239f47f8ba8509c11cf3ea30095831f7fed61441475edd8c449"
-
-[[package]]
 name = "encodify"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1896,24 +1890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lettre"
-version = "0.11.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f294f3d7cdb313e578acef7d7727d4e8d897e0fcd0d6d58c19959cec95073f19"
-dependencies = [
- "base64 0.23.1",
- "email_address",
- "idna",
- "nom 8.0.0",
- "percent-encoding",
- "rustls",
- "socket2",
- "tokio",
- "url",
- "webpki-roots",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2113,7 +2089,6 @@ dependencies = [
  "iana-time-zone",
  "imap-proto",
  "ipconfig",
- "lettre",
  "log",
  "mailcraft-jmap",
  "mailcraft-keys",

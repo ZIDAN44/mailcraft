@@ -66,6 +66,7 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `backup` | A backup file of what the browser keeps: read, written and read back |
 | `http` | HTTP answers, whole and streamed; `Content-Range`; release data and `SHA256SUMS.txt` |
 | `imap` | A whole IMAP session, including a folder sync |
+| `smtp` | A whole SMTP submission: replies of one line or several, in any character set, each sign-in, the message sent |
 | `jmap` | JMAP sign-in, sync, push events and URLs |
 | `ews` | Exchange Web Services answers: an Exchange mailbox's Inbox rules, read, written and read back; colleagues' free/busy times; which folders changed |
 | `search` | The query language, dates, the **Advanced** form, JMAP filters, modified UTF-7 |

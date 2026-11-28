@@ -68,6 +68,7 @@ on GitHub.
 
 ### Fixed
 
+- Mail goes out through a server that writes its replies in a character set other than UTF-8, as one set up in German may ("Grüß Gott"): every message failed with "invalid utf-8 sequence" and stayed in the Outbox (#309).
 - A file is saved and opened as it was sent when a mail gateway wrote its footer ("Scanned by …") after it in the message: the footer's letters were added to the end of the file, so a document could fail to open, and a file sent without a type was saved as its encoded text.
 - **Check for updates** in a portable copy on Windows offers the portable `.zip` to download; it offered the `.msi`, which installs a second MailCraft in Program Files rather than updating the portable one (#260).
 - The reading pane drew two lines, one under the other, between a message's header and its text.

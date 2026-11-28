@@ -27,7 +27,6 @@ mailcraft-store = { workspace = true }
 iana-time-zone = "0.1"
 mailcraft-jmap = { workspace = true }
 imap-proto = { workspace = true }
-lettre = { workspace = true }
 rustls = { workspace = true }
 webpki-roots = { workspace = true }
 # SHA-256 and randomness for OAuth's PKCE (already rustls's crypto provider).

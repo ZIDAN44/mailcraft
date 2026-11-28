@@ -63,7 +63,7 @@ fn load_distrusted() -> Distrusted {
 }
 
 /// The certificates rustls can take as roots, less those the system distrusts. A store can hold
-/// one it can't read; given to lettre, that one would fail every message sent, to every server.
+/// one it can't read, which is left out rather than stopping every connection.
 pub(crate) fn usable_roots(certs: Vec<CertificateDer<'static>>, distrusted: &Distrusted) -> Vec<CertificateDer<'static>> {
     certs.into_iter().filter(|c| !distrusted.contains(&c[..]) && RootCertStore::empty().add(c.clone()).is_ok()).collect()
 }
@@ -111,9 +111,9 @@ pub(super) fn client_config<V: ServerCertVerifier + 'static>(verifier: Arc<V>) -
     Ok(Arc::new(builder.dangerous().with_custom_certificate_verifier(verifier).with_no_client_auth()))
 }
 
-/// Checks the chain a TLS connection made elsewhere was given as `verifier` checks its own
-/// connections': the server's certificate first, then the CAs it sent along. For lettre (SMTP),
-/// which takes no verifier of ours: called after the handshake, before signing in.
+/// Checks a chain as `verifier` checks a connection's: the server's certificate first, then the
+/// CAs it sent along. The tests' way to put a chain before a check without a handshake.
+#[cfg(test)]
 pub(crate) fn check_chain<V: ServerCertVerifier>(verifier: &V, chain: &[Vec<u8>], host: &str) -> Result<(), rustls::Error> {
     let Some((leaf, rest)) = chain.split_first() else {
         return Err(rustls::Error::NoCertificatesPresented);
@@ -173,8 +173,8 @@ impl ServerCertVerifier for Distrusting {
 }
 
 mod own;
+pub(crate) use own::Own;
 pub use own::Trusted;
-pub(crate) use own::{Own, public_service};
 
 #[cfg(test)]
 pub(crate) mod test_certs;

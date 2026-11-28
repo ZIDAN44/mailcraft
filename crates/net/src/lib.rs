@@ -10,7 +10,7 @@
 //! * [`dav`]: calendars and address books, CalDAV and CardDAV.
 //! * [`pst`]: importing Outlook data files (`.pst`) into an account on this computer.
 //! * [`sieve`]: automatic replies on IMAP servers, through ManageSieve (RFC 5804).
-//! * [`smtp`]: message submission through `lettre` (RFC 6409, implicit TLS per RFC 8314).
+//! * [`smtp`]: message submission (RFC 6409, implicit TLS per RFC 8314), MailCraft's own client.
 //! * [`worker`]: one thread per account that runs the engine's [`Job`](mailcraft_model::Job)s
 //!   and reports [`Event`](mailcraft_model::Event)s, keeping a connection open, idling on the
 //!   Inbox for new mail and replaying changes made offline.

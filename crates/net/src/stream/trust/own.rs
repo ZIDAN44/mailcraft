@@ -161,8 +161,9 @@ impl Own {
         self.refused.lock().ok().and_then(|r| r.clone())
     }
 
-    /// `chain` (the server's certificate, then the CAs it sent along) as a connection made
-    /// elsewhere was given it, judged as this judges its own. For lettre (SMTP).
+    /// `chain` (the server's certificate, then the CAs it sent along), judged as a handshake
+    /// judges it: the tests' way in.
+    #[cfg(test)]
     pub(crate) fn check(&self, chain: &[Vec<u8>]) -> Result<(), rustls::Error> {
         check_chain(self, chain, &self.host)
     }

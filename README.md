@@ -95,6 +95,6 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 
 MailCraft is dual-licensed under MIT OR Apache-2.0.
 
-It is built on [`mail-parser`](https://github.com/stalwartlabs/mail-parser), [`mail-builder`](https://github.com/stalwartlabs/mail-builder), [`imap-proto`](https://github.com/djc/tokio-imap), [`lettre`](https://github.com/lettre/lettre), [`rustls`](https://github.com/rustls/rustls), [`html2text`](https://github.com/jugglerchris/rust-html2text), [`hayro`](https://github.com/LaurenzV/hayro) and [`egui`](https://github.com/emilk/egui). `.pst` files go through MailCraft's own crate, written from Microsoft's published specification.
+It is built on [`mail-parser`](https://github.com/stalwartlabs/mail-parser), [`mail-builder`](https://github.com/stalwartlabs/mail-builder), [`imap-proto`](https://github.com/djc/tokio-imap), [`rustls`](https://github.com/rustls/rustls), [`html2text`](https://github.com/jugglerchris/rust-html2text), [`hayro`](https://github.com/LaurenzV/hayro) and [`egui`](https://github.com/emilk/egui). `.pst` files go through MailCraft's own crate, written from Microsoft's published specification.
 
 Microsoft Outlook is a trademark of Microsoft. MailCraft is not affiliated with Microsoft and uses none of its code, icons or assets.

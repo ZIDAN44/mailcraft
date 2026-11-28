@@ -35,6 +35,7 @@ bin = [
     { name = "sieve", bench = false, test = false, doc = false, path = "fuzz_targets/sieve.rs" }, # another program's Sieve script, read for its automatic reply
     { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages
     { name = "signature_details", bench = false, test = false, doc = false, path = "fuzz_targets/pim/signature_details.rs" }, # a message's text read for its signature's details
+    { name = "smtp", bench = false, test = false, doc = false, path = "fuzz_targets/smtp.rs" }, # a whole SMTP submission from the server side
     { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/crypto/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "tnef", bench = false, test = false, doc = false, path = "fuzz_targets/tnef.rs" }, # Outlook's winmail.dat and compressed RTF
     { name = "vcard", bench = false, test = false, doc = false, path = "fuzz_targets/pim/vcard.rs" }, # contact cards

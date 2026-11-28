@@ -13,7 +13,6 @@ use rustls::{ServerConnection, StreamOwned};
 use super::*;
 use crate::stream::trust::test_certs::{internal_ca, issuing_ca, server_identity, via_issuing, via_issuing_identity};
 use crate::stream::trust::tests::check;
-use crate::stream::trust::{Distrusted, usable_roots};
 
 type Identity = (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>);
 
@@ -126,11 +125,9 @@ fn send_trusting_to(
     trusted: &[String],
 ) -> (Result<()>, String) {
     let (port, server) = serve(identity, security == Security::StartTls);
-    let set: Distrusted = distrusted.iter().map(|c| c.to_vec()).collect();
-    let roots = usable_roots(store.clone(), &set);
-    let trust = Trust { roots: &roots, verifier: check(store, distrusted), trusted: crate::stream::Trusted::pinned(trusted) };
+    let trust = Trust { verifier: check(store, distrusted), trusted: crate::stream::Trusted::pinned(trusted) };
     let config = ServerConfig { host: "127.0.0.1".into(), port, security };
-    let envelope = Envelope::new(Some("ana@corp.test".parse().unwrap()), vec!["ben@corp.test".parse().unwrap()]).unwrap();
+    let envelope = Envelope::new("ana@corp.test", &["ben@corp.test".into()]).unwrap();
     let message = b"Subject: hi\r\n\r\nhello\r\n";
     let sign_in = SignIn { user: "ana@corp.test", password: "made-up", oauth: false, method: SignInMethod::Automatic };
     let result = submit(&config, sign_in, &envelope, message, &["ben@corp.test".into()], &trust);
@@ -165,8 +162,8 @@ fn sends_to_a_server_whose_ca_the_system_trusts() {
     }
 }
 
-/// A server or intermediate certificate the system distrusts is refused after the handshake,
-/// before signing in: the server never sees the password or the message.
+/// A server or intermediate certificate the system distrusts is refused in the handshake: the
+/// server never sees the password or the message.
 #[test]
 fn a_distrusted_server_or_intermediate_never_gets_the_password() {
     for security in [Security::Tls, Security::StartTls] {

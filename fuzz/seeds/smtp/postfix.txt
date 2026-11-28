@@ -1,0 +1,14 @@
+220 mail.studio.example ESMTP
+250-mail.studio.example
+250-PIPELINING
+250-SIZE 35882577
+250-8BITMIME
+250-SMTPUTF8
+250 AUTH PLAIN LOGIN NTLM XOAUTH2
+235 2.7.0 Authentication successful
+250 2.1.0 Ok
+250 2.1.5 Ok
+250 2.1.5 Ok
+354 End data with <CR><LF>.<CR><LF>
+250 2.0.0 Ok: queued as 4F2C1
+221 2.0.0 Bye

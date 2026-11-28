@@ -6,10 +6,10 @@
 //! this computer (never a real account), run by hand:
 //!
 //! ```text
-//! docker run --rm -d --name mc-greenmail -p 127.0.0.1:3025:3025 -p 127.0.0.1:3143:3143 \
+//! docker run --rm -d --name mc-greenmail -p 127.0.0.1:3025:3025 -p 127.0.0.1:3143:3143 -p 127.0.0.1:3465:3465 \
 //!   -e GREENMAIL_OPTS='-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled' \
 //!   greenmail/standalone:2.1.3
-//! MAILCRAFT_REAL_GREENMAIL="127.0.0.1:3143 127.0.0.1:3025" \
+//! MAILCRAFT_REAL_GREENMAIL="127.0.0.1:3143 127.0.0.1:3025 127.0.0.1:3465" \
 //!   cargo test -p mailcraft-cli --test sending real_ -- --ignored --nocapture
 //! ```
 
@@ -19,7 +19,7 @@ mod servers;
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
-use mailcraft_engine::model::Event;
+use mailcraft_engine::model::{Event, FailureKind};
 use serde_json::json;
 use servers::{App, Imap};
 
@@ -55,7 +55,7 @@ fn real_new_messages_arrive_in_the_size_chosen() {
         eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
         return;
     };
-    let [imap, smtp] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
+    let [imap, smtp, ..] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
     let pid = std::process::id();
     let (me, to) = (format!("riley.{pid}@studio.example"), format!("kim.{pid}@studio.example"));
     let (mut app, id) = App::at(imap, smtp, &me, &me, "pw", "new-message-size");
@@ -93,7 +93,7 @@ fn real_a_plain_message_arrives_as_html_when_chosen() {
         eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
         return;
     };
-    let [imap, smtp] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
+    let [imap, smtp, ..] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
     let pid = std::process::id();
     let (me, to) = (format!("riley.{pid}@studio.example"), format!("lee.{pid}@studio.example"));
     let (mut app, id) = App::at(imap, smtp, &me, &me, "pw", "compose-html");
@@ -118,6 +118,55 @@ fn real_a_plain_message_arrives_as_html_when_chosen() {
     eprintln!("arrived as HTML with its text version");
 }
 
+/// Sent over implicit TLS (GreenMail's SMTPS, its certificate made by itself): refused and asked
+/// about first, then sent once that certificate is trusted, as MailCraft's own SMTP client checks
+/// the server's certificate in the handshake.
+#[test]
+#[ignore = "needs GreenMail in MAILCRAFT_REAL_GREENMAIL"]
+fn real_sent_over_tls_once_its_certificate_is_trusted() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_GREENMAIL") else {
+        eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
+        return;
+    };
+    let [imap, _, smtps] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp smtps") };
+    let pid = std::process::id();
+    let (me, to) = (format!("riley.{pid}@studio.example"), format!("mo.{pid}@studio.example"));
+    let mut app = App::open("smtps", "pw");
+    let (sh, sp) = smtps.rsplit_once(':').unwrap();
+    let id = app.add_plain(
+        imap,
+        smtps,
+        json!({"email": me, "password": "pw", "smtpHost": sh, "smtpPort": sp.parse::<u16>().unwrap(), "smtpSecurity": "tls"}),
+    );
+    let send = |app: &mut App, subject: &str| {
+        app.s.run("mail.new", &json!({"account": id})).unwrap();
+        app.s.run("compose.update", &json!({"to": to, "subject": subject, "body": "Over TLS."})).unwrap();
+        app.s.run("compose.send", &json!({})).unwrap();
+    };
+    send(&mut app, &format!("Asked about {pid}"));
+    let mut shown = None;
+    app.pump(60, "refused", |_, e| match e {
+        Event::Queued { kind: FailureKind::UntrustedCertificate(c), .. } => {
+            shown = Some(c.fingerprint.clone());
+            true
+        }
+        Event::Sent { .. } => panic!("sent to a certificate nobody trusted"),
+        _ => false,
+    });
+    let print = shown.expect("its certificate shown");
+    app.s.run("account.trustCertificate", &json!({"account": id, "fingerprint": print})).unwrap();
+    let subject = format!("Once trusted {pid}");
+    send(&mut app, &subject);
+    app.pump(60, "sent", |_, e| matches!(e, Event::Sent { .. }));
+    let mut mo = Imap::connect(imap, &to, "pw");
+    let end = Instant::now() + Duration::from_secs(30);
+    while !mo.subjects("INBOX").contains(&subject) {
+        assert!(Instant::now() < end, "not delivered");
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    eprintln!("refused, asked about, then sent over TLS once trusted");
+}
+
 /// A table pasted into a message (issue #268), cells copied in Excel, arrives as a table: its
 /// rows and cells with their lines in the HTML, its text a row a line in the plain text.
 #[test]
@@ -127,7 +176,7 @@ fn real_a_pasted_table_arrives_as_a_table() {
         eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
         return;
     };
-    let [imap, smtp] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
+    let [imap, smtp, ..] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
     let pid = std::process::id();
     let (me, to) = (format!("riley.t{pid}@studio.example"), format!("kim.t{pid}@studio.example"));
     let (mut app, id) = App::at(imap, smtp, &me, &me, "pw", "pasted-table");

@@ -77,7 +77,6 @@ const RESTRICTED: &[(&str, &[&str])] = &[
     // The network layer is wired up by the apps only: the engine stays sans-I/O.
     ("mailcraft-net", &[]),
     // Network stacks: only the network layer.
-    ("lettre", &["mailcraft-net"]),
     ("rustls", &["mailcraft-net"]),
     ("imap-proto", &["mailcraft-net"]),
 ];

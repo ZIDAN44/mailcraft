@@ -139,7 +139,7 @@ fn a_server_that_offers_no_sign_in_is_sent_to_without_one() {
 }
 
 /// Offering only methods MailCraft doesn't speak, the server is said to, naming them: it was
-/// lettre's "No compatible authentication mechanism was found".
+/// "No compatible authentication mechanism was found".
 #[test]
 fn methods_mailcraft_doesnt_speak_are_named() {
     let (port, lines) = server("CRAM-MD5 GSSAPI", "");
@@ -149,9 +149,8 @@ fn methods_mailcraft_doesnt_speak_are_named() {
 }
 
 /// A server that refuses a second `EHLO` in its session (IONOS's, issue #165: "503 Bad sequence
-/// of commands", every message refused): the password goes by what the first one named, with no
-/// second asked; one that names nothing MailCraft's mail library knows is asked again, and a
-/// refusal of that is taken as nothing more named.
+/// of commands", every message refused): the sign-in goes by what the one `EHLO` named, never
+/// asked again, NTLM too.
 #[test]
 fn a_server_that_says_hello_once_is_signed_in_to() {
     for method in [SignInMethod::Automatic, SignInMethod::Password] {
@@ -162,9 +161,9 @@ fn a_server_that_says_hello_once_is_signed_in_to() {
         assert!(lines.iter().any(|l| l.starts_with("AUTH PLAIN") || l.starts_with("AUTH LOGIN")), "{lines:?}");
         assert!(lines.iter().any(|l| l.starts_with("MAIL FROM")), "sent: {lines:?}");
     }
-    // NTLM is only seen by asking again: asked, refused, nothing more known; left to MailCraft
-    // (no sign-in it knows of), sent as a server taking mail without one.
-    let (port, lines) = server_as("NTLM", "", true);
+    let (port, lines) = server_as("NTLM", "235 2.7.0 welcome\r\n", true);
     send_with(port, SignInMethod::Automatic).unwrap();
-    assert!(sent(&lines).iter().any(|l| l.starts_with("MAIL FROM")));
+    let lines = sent(&lines);
+    assert_eq!(lines.iter().filter(|l| l.starts_with("EHLO")).count(), 1, "{lines:?}");
+    assert!(lines.iter().any(|l| l == "AUTH NTLM") && lines.iter().any(|l| l.starts_with("MAIL FROM")), "{lines:?}");
 }

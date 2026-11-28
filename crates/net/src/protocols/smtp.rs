@@ -1,26 +1,28 @@
-//! Message submission (RFC 6409) through `lettre`: implicit TLS on 465 (preferred, RFC 8314),
-//! STARTTLS on 587, or plain only for local test servers.
+//! Message submission (RFC 6409): implicit TLS on 465 (preferred, RFC 8314), STARTTLS on 587
+//! (RFC 3207), or plain only for local test servers. MailCraft's own client, on the streams IMAP,
+//! POP and ManageSieve use ([`crate::stream`]): the server's certificates are checked in the
+//! handshake, as theirs are, and its replies read as [`wire`] reads them.
 
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs, UdpSocket};
+use std::io::{Read, Write};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::Duration;
 
-use lettre::address::{Address, Envelope};
-use lettre::transport::smtp::authentication::{Credentials, DEFAULT_MECHANISMS, Mechanism};
-use lettre::transport::smtp::client::{Certificate, SmtpConnection, TlsParameters};
-use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
-use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter};
 use mailcraft_model::{Security, ServerConfig, SignInMethod};
-use rustls::pki_types::CertificateDer;
 
-use crate::stream::Trusted;
-use crate::stream::trust::{self, Distrusting};
+use crate::stream::trust::Distrusting;
+use crate::stream::{Stream, Timeouts, Trusted};
 use crate::{NetError, Result};
 
 #[cfg(test)]
 mod sign_in_tests;
 #[cfg(test)]
 mod tls_tests;
+mod wire;
+#[cfg(test)]
+mod wire_tests;
+
+use wire::{Conn, Offers, Reply};
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients`, signing in with a password:
 /// the tests' way to put mail on a server.
@@ -33,16 +35,8 @@ pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recip
 /// signing in as `sign_in` says: `trusted` is what the account trusts besides the usual
 /// authorities, as [`crate::stream::tls_trusting`] takes it.
 pub fn send_trusting(server: &ServerConfig, sign_in: SignIn<'_>, from: &str, recipients: &[String], raw: &[u8], trusted: Trusted<'_>) -> Result<()> {
-    let from: Address = from.trim().parse().map_err(|e| NetError::Smtp(format!("sender {from}: {e}")))?;
-    let mut to = Vec::with_capacity(recipients.len());
-    for r in recipients {
-        to.push(r.trim().parse::<Address>().map_err(|e| NetError::Smtp(format!("recipient {r}: {e}")))?);
-    }
-    if to.is_empty() {
-        return Err(NetError::Smtp("no recipients".into()));
-    }
-    let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
-    let trust = Trust { roots: crate::stream::system_roots(), verifier: crate::stream::system_verifier().map_err(NetError::Tls)?, trusted };
+    let envelope = Envelope::new(from, recipients)?;
+    let trust = Trust { verifier: crate::stream::system_verifier().map_err(NetError::Tls)?, trusted };
     submit(server, sign_in, &envelope, raw, recipients, &trust)
 }
 
@@ -56,168 +50,229 @@ pub struct SignIn<'a> {
     pub method: SignInMethod,
 }
 
-/// What sending trusts: `roots` for lettre's handshake (the system's), and `verifier`, the check
-/// every connection's certificates get, with what the account trusts besides ([`trust::Own`]).
+/// Who the message is from and to, as `MAIL FROM` and `RCPT TO` name them.
+struct Envelope {
+    from: String,
+    to: Vec<String>,
+}
+
+impl Envelope {
+    /// The addresses checked before anything is sent: each one address, `local@domain`, with
+    /// nothing in it that would end a command or its brackets.
+    fn new(from: &str, recipients: &[String]) -> Result<Envelope> {
+        let from = address(from).ok_or_else(|| NetError::Smtp(format!("sender {from}: not an email address")))?;
+        let mut to = Vec::with_capacity(recipients.len());
+        for r in recipients {
+            to.push(address(r).ok_or_else(|| NetError::Smtp(format!("recipient {r}: not an email address")))?);
+        }
+        if to.is_empty() {
+            return Err(NetError::Smtp("no recipients".into()));
+        }
+        Ok(Envelope { from, to })
+    }
+
+    /// Whether every address is ASCII: one that isn't needs the server's SMTPUTF8 (RFC 6531).
+    fn ascii(&self) -> bool {
+        self.from.is_ascii() && self.to.iter().all(|t| t.is_ascii())
+    }
+}
+
+/// `text` as an address for the envelope, when it is one: `local@domain`, both parts there, no
+/// spaces, controls, brackets or a second `@` outside the local part's quotes left unquoted.
+fn address(text: &str) -> Option<String> {
+    let a = text.trim();
+    let (local, domain) = a.rsplit_once('@')?;
+    let bad = |c: char| c.is_whitespace() || c.is_control() || matches!(c, '<' | '>');
+    let fits = !local.is_empty() && !domain.is_empty() && local.len() <= 256 && domain.len() <= 255;
+    (fits && !a.chars().any(bad) && !domain.contains(['@', '"', ','])).then(|| a.to_string())
+}
+
+/// What sending trusts: `verifier`, the check every connection's certificates get (the
+/// system's), with what the account trusts besides ([`crate::stream::trust::Own`]).
 struct Trust<'a> {
-    roots: &'a [CertificateDer<'static>],
     verifier: Arc<Distrusting>,
     trusted: Trusted<'a>,
 }
 
-/// One message over one connection, as lettre's `SmtpTransport` sends it (connect and EHLO,
-/// STARTTLS, AUTH, MAIL / RCPT / DATA, QUIT), with the server's certificates checked between
-/// the handshake and the sign-in: lettre takes no verifier of ours, and only so are a server or
-/// intermediate certificate the system distrusts refused before the password goes out.
+/// One message over one connection: connect (and secure it), the greeting, `EHLO`, STARTTLS,
+/// the sign-in, then `MAIL` / `RCPT` / `DATA` and `QUIT`. The server's certificates are checked
+/// in the handshake, so one the system distrusts, or the account doesn't, never hears a word.
 fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: &[u8], recipients: &[String], trust: &Trust<'_>) -> Result<()> {
-    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
     let host = server.host.as_str();
-    // Each of the server's addresses in turn, as lettre would try them, greeted with this
-    // computer's own address on the way to it.
-    let addrs: Vec<SocketAddr> = (host, server.port).to_socket_addrs().map_err(NetError::Io)?.take(MAX_ADDRESSES).collect();
-    // A server may show a certificate the account trusts and no authority vouches for (one on
-    // this computer, a bridge to a mail service; a company's own, issue #105): lettre's handshake
-    // lets it by, and the account's check below decides, before any sign-in. Not a major mail
-    // service's server, whose certificate an authority always vouches for. lettre greets the
-    // server (EHLO, this computer's address) before that check: the greeting STARTTLS already
-    // says in the clear, never the password or the message.
-    let here = !addrs.is_empty() && addrs.iter().all(|a| crate::stream::on_this_computer(a.ip()));
-    let local = here || !trust::public_service(host);
-    let wrapper = match server.security {
-        Security::Tls => Some(tls_parameters(host, trust.roots, local)?),
-        Security::StartTls | Security::None => None,
+    let sock = crate::stream::tcp(host, server.port)?;
+    // Greeted with this computer's own address on the way to the server (#50).
+    let hello = sock.peer_addr().map(hello_for).unwrap_or_else(|_| "[127.0.0.1]".into());
+    let secure = |sock| crate::stream::tls_checked(sock, host, Arc::clone(&trust.verifier), trust.trusted);
+    let stream = match server.security {
+        Security::Tls => secure(sock)?,
+        Security::StartTls | Security::None => Stream::Plain(sock),
     };
-    let mut tried = None;
-    let mut connected = None;
-    for addr in addrs {
-        let hello = hello_for(addr);
-        match SmtpConnection::connect(addr, Some(TIMEOUT), &hello, wrapper.as_ref(), None) {
-            Ok(c) => {
-                connected = Some((c, hello));
-                break;
-            }
-            Err(e) => tried = Some(e),
-        }
-    }
-    let Some((mut conn, hello)) = connected else {
-        return Err(match tried {
-            Some(e) => failed(e),
-            None => NetError::Io(std::io::Error::other(format!("{host}: no address"))),
-        });
-    };
+    let mut conn = Conn::new(stream);
+    let mut offers = greet(&mut conn, &hello, recipients)?;
     if server.security == Security::StartTls {
-        conn.starttls(&tls_parameters(host, trust.roots, local)?, &hello).map_err(failed)?;
-    }
-    if server.security != Security::None {
-        // After a handshake there's always a chain: lettre's call can't come back empty.
-        let chain = conn.certificate_chain().map_err(failed)?;
-        // The usual check, then what the account trusts; or it's said which certificate it was.
-        let check = trust::Own::new(Arc::clone(&trust.verifier), trust.trusted, host, here);
-        let verdict = check.check(&chain).map_err(|e| match check.refused() {
-            Some(shown) => NetError::Untrusted(Box::new(shown)),
-            None => NetError::Tls(e.to_string()),
-        });
-        if let Err(e) = verdict {
-            conn.abort();
-            return Err(e);
+        if !offers.has("STARTTLS") {
+            conn.quit();
+            return Err(NetError::Tls("the outgoing server does not offer STARTTLS".into()));
         }
+        expect(conn.command("STARTTLS")?, recipients)?;
+        let Stream::Plain(sock) = conn.into_stream()? else {
+            return Err(NetError::Tls("connection already encrypted".into()));
+        };
+        conn = Conn::new(secure(sock)?);
+        // What the server offers is asked again over TLS (RFC 3207 §4.2): what it said in the
+        // clear isn't to be relied on.
+        offers = ehlo(&mut conn, &hello, recipients)?;
     }
-    if let Err(e) = sign_in_to(&mut conn, &hello, &sign_in, recipients) {
-        conn.abort();
-        return Err(e);
-    }
-    let sent = hand_over(&mut conn, envelope, raw, recipients);
-    conn.abort();
+    let sent = after_greeting(&mut conn, &offers, sign_in, envelope, raw, recipients);
+    conn.quit();
     sent
 }
 
+/// MailCraft's side of a session over a connection already open (and secured, where it's to be):
+/// the greeting, `EHLO` naming `hello`, the sign-in, the message and `QUIT`. The fuzz target's
+/// way in, as a server's bytes reach the client.
+pub fn session_over<S: Read + Write + Timeouts>(
+    stream: S,
+    hello: &str,
+    sign_in: SignIn<'_>,
+    from: &str,
+    recipients: &[String],
+    raw: &[u8],
+) -> Result<()> {
+    let envelope = Envelope::new(from, recipients)?;
+    let mut conn = Conn::new(stream);
+    let offers = greet(&mut conn, hello, recipients)?;
+    let sent = after_greeting(&mut conn, &offers, sign_in, &envelope, raw, recipients);
+    conn.quit();
+    sent
+}
+
+/// The server's greeting, then `EHLO`: what it offers.
+fn greet<S: Read + Write + Timeouts>(conn: &mut Conn<S>, hello: &str, recipients: &[String]) -> Result<Offers> {
+    let greeting = conn.reply()?;
+    if greeting.code != 220 {
+        return Err(refused(&greeting, recipients));
+    }
+    ehlo(conn, hello, recipients)
+}
+
+fn ehlo<S: Read + Write + Timeouts>(conn: &mut Conn<S>, hello: &str, recipients: &[String]) -> Result<Offers> {
+    let r = expect(conn.command(&format!("EHLO {hello}"))?, recipients)?;
+    Ok(Offers::of(&r))
+}
+
+fn after_greeting<S: Read + Write + Timeouts>(
+    conn: &mut Conn<S>,
+    offers: &Offers,
+    sign_in: SignIn<'_>,
+    envelope: &Envelope,
+    raw: &[u8],
+    recipients: &[String],
+) -> Result<()> {
+    sign_in_to(conn, offers, &sign_in, recipients)?;
+    hand_over(conn, offers, envelope, raw, recipients)
+}
+
+/// `r` when it's a success (2xx), else what it means ([`refused`]).
+fn expect(r: Reply, recipients: &[String]) -> Result<Reply> {
+    if r.done() { Ok(r) } else { Err(refused(&r, recipients)) }
+}
+
 /// Sign in as `sign_in` says, once the connection is secured (issue #123). An OAuth token goes
-/// as XOAUTH2. With a password: `PLAIN` or `LOGIN` (lettre's), or NTLM, Outlook's Secure Password
+/// as XOAUTH2. With a password: `PLAIN` or `LOGIN`, or NTLM, Outlook's Secure Password
 /// Authentication; left to MailCraft, the password when the server takes it, NTLM when it takes
 /// only that, and no sign-in when it offers none (a company's server that takes mail from where
-/// it's sent). An empty user name or [`SignInMethod::None`] sends without signing in.
-fn sign_in_to(conn: &mut SmtpConnection, hello: &ClientId, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
-    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+/// it's sent). An empty user name or [`SignInMethod::None`] sends without signing in. What the
+/// server offers is what its one `EHLO` named: IONOS's servers refuse a second `EHLO` in a
+/// session ("503 Bad sequence of commands", issue #165).
+fn sign_in_to<S: Read + Write + Timeouts>(conn: &mut Conn<S>, offers: &Offers, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
     if sign_in.user.is_empty() || sign_in.method == SignInMethod::None {
         return Ok(());
     }
-    let credentials = Credentials::new(sign_in.user.to_string(), sign_in.password.to_string());
-    if sign_in.oauth {
-        return conn.auth(&[Mechanism::Xoauth2], &credentials).map(drop).map_err(failed);
-    }
-    // What the connection's `EHLO` named that lettre speaks. Asked again only for what it doesn't
-    // (NTLM): IONOS's servers refuse a second `EHLO` in a session ("503 Bad sequence of
-    // commands", issue #165), and every message was refused. One refused counts as no more.
-    let info = conn.server_info();
-    let known: Vec<String> = [(Mechanism::Plain, "PLAIN"), (Mechanism::Login, "LOGIN"), (Mechanism::Xoauth2, "XOAUTH2")]
-        .into_iter()
-        .filter(|(m, _)| info.supports_auth_mechanism(*m))
-        .map(|(_, name)| name.to_string())
-        .collect();
-    let password_known = known.iter().any(|m| m == "PLAIN" || m == "LOGIN");
-    let offered = if password_known && sign_in.method != SignInMethod::Ntlm {
-        known
-    } else {
-        match offered_sign_ins(conn, hello) {
-            Ok(all) => all,
-            Err(e) => {
-                log::info!("the outgoing server refused EHLO asked again ({e}): what it named first is used");
-                known
-            }
-        }
-    };
+    let offered = offers.sign_ins();
     let has = |m: &str| offered.iter().any(|o| o == m);
+    if sign_in.oauth {
+        if !has("XOAUTH2") {
+            return Err(NetError::Auth(format!("the outgoing server doesn't offer XOAUTH2; it offers: {}", names(&offered))));
+        }
+        return xoauth2(conn, sign_in, recipients);
+    }
     let password = has("PLAIN") || has("LOGIN");
-    let names = || if offered.is_empty() { "none".to_string() } else { offered.join(", ") };
     match sign_in.method {
         SignInMethod::Automatic if offered.is_empty() => Ok(()),
-        SignInMethod::Automatic | SignInMethod::Password if password => conn.auth(DEFAULT_MECHANISMS, &credentials).map(drop).map_err(failed),
+        SignInMethod::Automatic | SignInMethod::Password if password => password_sign_in(conn, sign_in, has("PLAIN"), recipients),
         SignInMethod::Automatic | SignInMethod::Ntlm if has("NTLM") => ntlm(conn, sign_in, recipients),
         SignInMethod::Ntlm => {
-            Err(NetError::Auth(format!("the outgoing server doesn't offer NTLM (Secure Password Authentication); it offers: {}", names())))
+            Err(NetError::Auth(format!("the outgoing server doesn't offer NTLM (Secure Password Authentication); it offers: {}", names(&offered))))
         }
         SignInMethod::Password if offered.is_empty() => Err(NetError::Auth(
             "the outgoing server offers no sign-in: if it takes mail without one, choose No sign-in in the account's Server settings".into(),
         )),
-        _ => Err(NetError::Auth(format!("the outgoing server offers no sign-in MailCraft can use; it offers: {}", names()))),
+        _ => Err(NetError::Auth(format!("the outgoing server offers no sign-in MailCraft can use; it offers: {}", names(&offered)))),
     }
 }
 
-/// The sign-in methods the server names (`AUTH PLAIN LOGIN NTLM`, or the older `AUTH=`), upper
-/// case: `EHLO` asked again, as lettre keeps only those it speaks (RFC 5321 lets it be asked any
-/// time).
-fn offered_sign_ins(conn: &mut SmtpConnection, hello: &ClientId) -> std::result::Result<Vec<String>, lettre::transport::smtp::Error> {
-    let r = conn.command(lettre::transport::smtp::commands::Ehlo::new(hello.clone()))?;
-    let mut out: Vec<String> = Vec::new();
-    for line in r.message() {
-        let line = line.trim();
-        let Some(rest) = line.get(..5).filter(|p| p.eq_ignore_ascii_case("AUTH ") || p.eq_ignore_ascii_case("AUTH=")).and(line.get(5..)) else {
-            continue;
-        };
-        for m in rest.split_whitespace().take(32) {
-            let m = m.to_ascii_uppercase();
-            if !out.contains(&m) {
-                out.push(m);
-            }
+/// The sign-in methods a server offers, for an error to name.
+fn names(offered: &[String]) -> String {
+    if offered.is_empty() { "none".to_string() } else { offered.join(", ") }
+}
+
+/// The password, as `PLAIN` (RFC 4616, sent at once) or, when the server doesn't take that,
+/// `LOGIN` (the user name, then the password, each when asked).
+fn password_sign_in<S: Read + Write + Timeouts>(conn: &mut Conn<S>, sign_in: &SignIn<'_>, plain: bool, recipients: &[String]) -> Result<()> {
+    let b64 = |s: &str| mailcraft_model::base64::encode(s.as_bytes());
+    let r = if plain {
+        conn.command(&format!("AUTH PLAIN {}", b64(&format!("\0{}\0{}", sign_in.user, sign_in.password))))?
+    } else {
+        let r = conn.command("AUTH LOGIN")?;
+        if r.code != 334 {
+            return Err(refused(&r, recipients));
         }
-    }
-    Ok(out)
+        let r = conn.command(&b64(sign_in.user))?;
+        if r.code != 334 {
+            return Err(refused(&r, recipients));
+        }
+        conn.command(&b64(sign_in.password))?
+    };
+    signed_in(conn, r, recipients)
 }
 
-/// A line MailCraft writes itself (a step of a sign-in lettre doesn't speak).
-struct Line(String);
+/// An OAuth access token, as Gmail and Microsoft 365 take it (SASL XOAUTH2).
+fn xoauth2<S: Read + Write + Timeouts>(conn: &mut Conn<S>, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
+    let r = conn.command(&format!("AUTH XOAUTH2 {}", crate::oauth::xoauth2(sign_in.user, sign_in.password)))?;
+    signed_in(conn, r, recipients)
+}
 
-impl std::fmt::Display for Line {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}\r\n", self.0)
+/// Signed in on `235`. A server asking on (`334`: XOAUTH2's error, as JSON) is answered with an
+/// empty line, as the method has it, for its refusal; anything else is the refusal.
+fn signed_in<S: Read + Write + Timeouts>(conn: &mut Conn<S>, r: Reply, recipients: &[String]) -> Result<()> {
+    match r.code {
+        235 => Ok(()),
+        334 => {
+            let last = conn.command("")?;
+            if last.code == 235 {
+                return Ok(());
+            }
+            Err(match refused(&last, recipients) {
+                NetError::Auth(m) => NetError::Auth(m),
+                _ => NetError::Auth(last.said()),
+            })
+        }
+        _ => Err(refused(&r, recipients)),
     }
 }
 
 /// NTLM's messages through RFC 4954's `AUTH` exchange (as [MS-SMTPNTLM] has it): the server's
 /// challenge answered, the password never sent.
-fn ntlm(conn: &mut SmtpConnection, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
-    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
-    conn.command(Line("AUTH NTLM".into())).map_err(failed)?;
-    let r = conn.command(Line(mailcraft_model::base64::encode(&crate::ntlm::negotiate()))).map_err(failed)?;
+fn ntlm<S: Read + Write + Timeouts>(conn: &mut Conn<S>, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
+    let r = conn.command("AUTH NTLM")?;
+    if r.code != 334 {
+        return Err(refused(&r, recipients));
+    }
+    let r = conn.command(&mailcraft_model::base64::encode(&crate::ntlm::negotiate()))?;
+    if r.code != 334 {
+        return Err(refused(&r, recipients));
+    }
     let answer = r
         .first_word()
         .and_then(crate::ews::unb64)
@@ -227,122 +282,96 @@ fn ntlm(conn: &mut SmtpConnection, sign_in: &SignIn<'_>, recipients: &[String]) 
         Ok(a) => a,
         Err(e) => {
             // Cancelled, as RFC 4954 cancels; the server's refusal of that is expected.
-            let _ = conn.command(Line("*".into()));
+            let _ = conn.command("*");
             return Err(e);
         }
     };
     // Signed in only on 235: a server asking on (334) isn't, and is cancelled.
-    let r = conn.command(Line(mailcraft_model::base64::encode(&answer))).map_err(failed)?;
-    if r.has_code(235) {
-        return Ok(());
+    let r = conn.command(&mailcraft_model::base64::encode(&answer))?;
+    match r.code {
+        235 => Ok(()),
+        334 => {
+            let _ = conn.command("*");
+            Err(NetError::Auth("the outgoing server didn't finish the NTLM sign-in".into()))
+        }
+        _ => Err(refused(&r, recipients)),
     }
-    let _ = conn.command(Line("*".into()));
-    Err(NetError::Auth("the outgoing server didn't finish the NTLM sign-in".into()))
 }
 
-/// MAIL, RCPT, DATA and the message, as lettre's `SmtpConnection::send` goes through them, one
-/// at a time so it's known how far it got. Up to DATA nothing is sent, and a failure can be
-/// tried again. Once the message itself has gone, only the server's answer says what became of
-/// it: with none (it stopped answering, the connection dropped), the message may be on its way,
-/// and trying again by itself is how it arrives twice.
-fn hand_over(conn: &mut SmtpConnection, envelope: &Envelope, raw: &[u8], recipients: &[String]) -> Result<()> {
-    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+/// MAIL, RCPT, DATA and the message, one at a time so it's known how far it got. Up to DATA
+/// nothing is sent, and a failure can be tried again. Once the message itself has gone, only the
+/// server's answer says what became of it: with none (it stopped answering, the connection
+/// dropped), the message may be on its way, and trying again by itself is how it arrives twice.
+fn hand_over<S: Read + Write + Timeouts>(conn: &mut Conn<S>, offers: &Offers, envelope: &Envelope, raw: &[u8], recipients: &[String]) -> Result<()> {
     let lacks = |what: &str| NetError::Io(std::io::Error::other(format!("the server does not support {what}")));
-    let mut options = Vec::new();
-    let ascii = |a: &Address| AsRef::<str>::as_ref(a).is_ascii();
-    if !envelope.from().is_none_or(ascii) || !envelope.to().iter().all(ascii) {
-        if !conn.server_info().supports_feature(Extension::SmtpUtfEight) {
+    let mut options = String::new();
+    if !envelope.ascii() {
+        if !offers.has("SMTPUTF8") {
             return Err(lacks("addresses outside ASCII (SMTPUTF8)"));
         }
-        options.push(MailParameter::SmtpUtfEight);
+        options.push_str(" SMTPUTF8");
     }
     if !raw.is_ascii() {
-        if !conn.server_info().supports_feature(Extension::EightBitMime) {
+        if !offers.has("8BITMIME") {
             return Err(lacks("text outside ASCII (8BITMIME)"));
         }
-        options.push(MailParameter::Body(MailBodyParameter::EightBitMime));
+        options.push_str(" BODY=8BITMIME");
     }
     // Turned away at MAIL, it's the sender the server refuses: said, with the address. "550 Invalid
     // Sender" alone hid an account's mistyped address (Outlook, with the right one, sent).
-    conn.command(Mail::new(envelope.from().cloned(), options)).map_err(|e| match failed(e) {
-        NetError::Smtp(msg) => match envelope.from() {
-            Some(from) => NetError::Smtp(format!("the server refused the sender, {from}: {msg}")),
-            None => NetError::Smtp(msg),
-        },
+    let r = conn.command(&format!("MAIL FROM:<{}>{options}", envelope.from))?;
+    expect(r, recipients).map_err(|e| match e {
+        NetError::Smtp(msg) => NetError::Smtp(format!("the server refused the sender, {}: {msg}", envelope.from)),
         other => other,
     })?;
-    for to in envelope.to() {
-        conn.command(Rcpt::new(to.clone(), Vec::new())).map_err(failed)?;
+    for to in &envelope.to {
+        expect(conn.command(&format!("RCPT TO:<{to}>"))?, recipients)?;
     }
-    conn.command(Data).map_err(failed)?;
+    let r = conn.command("DATA")?;
+    if r.code != 354 {
+        return Err(refused(&r, recipients));
+    }
     // The server may check the whole message before it answers (RFC 5321 §4.5.3.2.6: wait ten
     // minutes).
-    conn.set_timeout(Some(SENT_TIMEOUT)).map_err(NetError::Io)?;
+    conn.set_timeout(SENT_TIMEOUT)?;
     match conn.message(raw) {
-        Ok(_) => Ok(()),
+        Ok(r) if r.done() => Ok(()),
         // An answer, whatever it says, is the server's word on the message.
-        Err(e) if e.status().is_some() => Err(failed(e)),
+        Ok(r) => Err(refused(&r, recipients)),
         Err(e) => Err(NetError::Unconfirmed(e.to_string())),
     }
 }
 
-/// How long the server may take to answer.
-const TIMEOUT: Duration = Duration::from_secs(60);
-
 /// How long it may take over a message it's been sent.
 const SENT_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// The most of a server's addresses tried.
-const MAX_ADDRESSES: usize = 8;
-
 /// What MailCraft calls itself in its EHLO to `server` (RFC 5321 §4.1.4): the address literal
 /// of this computer's address on the way there, as Thunderbird sends, since a desktop has no name
-/// the world knows. lettre's own, without a host name, is `[127.0.0.1]`, and some providers'
-/// spam filters drop mail greeted so after taking it (#50). The address is the one the system
-/// would send from: a socket "connected" without sending anything says it.
-fn hello_for(server: SocketAddr) -> ClientId {
+/// the world knows. `[127.0.0.1]` for every server, as a library's default had it, and some
+/// providers' spam filters dropped mail greeted so after taking it (#50). The address is the one
+/// the system would send from: a socket "connected" without sending anything says it.
+fn hello_for(server: SocketAddr) -> String {
     let any: SocketAddr = if server.is_ipv4() { (Ipv4Addr::UNSPECIFIED, 0).into() } else { (Ipv6Addr::UNSPECIFIED, 0).into() };
     let local = UdpSocket::bind(any).and_then(|s| {
         s.connect(server)?;
         s.local_addr()
     });
     match local.map(|a| a.ip()) {
-        Ok(IpAddr::V4(ip)) if !ip.is_unspecified() => ClientId::Ipv4(ip),
-        Ok(IpAddr::V6(ip)) if !ip.is_unspecified() => ip.to_ipv4_mapped().map_or(ClientId::Ipv6(ip), ClientId::Ipv4),
+        Ok(IpAddr::V4(ip)) if !ip.is_unspecified() => format!("[{ip}]"),
+        Ok(IpAddr::V6(ip)) if !ip.is_unspecified() => ip.to_ipv4_mapped().map_or_else(|| format!("[IPv6:{ip}]"), |v4| format!("[{v4}]")),
         // No way to the server: the connection fails anyway.
-        _ => ClientId::default(),
+        _ => "[127.0.0.1]".into(),
     }
 }
 
-/// What a failure from lettre means for the message: refused for good, to try again later, or
-/// no answer at all.
-fn failure(e: lettre::transport::smtp::Error, recipients: &[String]) -> NetError {
-    let msg = e.to_string();
-    if e.is_permanent() {
-        let code = e.status().and_then(|c| c.to_string().parse::<u16>().ok()).unwrap_or(550);
-        refusal(code, &msg, recipients)
-    } else if e.is_transient() {
-        // 4xx: the server asks to try again later.
-        NetError::Later(msg)
-    } else {
-        // No answer at all: no network, refused connection, TLS failure or a timeout.
-        NetError::Io(std::io::Error::other(msg))
+/// What a reply that isn't the one hoped for means for the message: refused for good (5xx), to
+/// try again later (4xx), or not SMTP's answer at all.
+fn refused(r: &Reply, recipients: &[String]) -> NetError {
+    match r.code / 100 {
+        5 => refusal(r.code, &r.said(), recipients),
+        4 => NetError::Later(r.said()),
+        _ => NetError::Protocol(format!("the outgoing server answered: {}", r.said())),
     }
-}
-
-/// TLS for `host`: lettre's bundled Mozilla roots and `roots` (the system's, which IMAP and
-/// HTTPS trust too). lettre fails the whole build on a root it can't read, so `roots` holds
-/// only usable ones, the system's distrusted ones already left out
-/// ([`crate::stream::system_roots`]). What else the system distrusts, [`submit`] refuses.
-fn tls_parameters(host: &str, roots: &[CertificateDer<'static>], unchecked: bool) -> Result<TlsParameters> {
-    // `unchecked`: lettre's own check is left out, for [`submit`]'s to decide alone.
-    let mut p = TlsParameters::builder(host.to_string()).dangerous_accept_invalid_certs(unchecked);
-    for der in roots {
-        if let Ok(c) = Certificate::from_der(der.to_vec()) {
-            p = p.add_root_certificate(c);
-        }
-    }
-    p.build_rustls().map_err(|e| NetError::Tls(e.to_string()))
 }
 
 /// What a 5xx reply means, by its code (RFC 4954 §6, RFC 3463), never by words in its text
@@ -424,7 +453,7 @@ pub(crate) mod tests {
 
     /// Issue #50: the EHLO names this computer's address on the way to the server, as an address
     /// literal: the loopback address only for a server on this computer, and this computer's own
-    /// network address for one reached through it (lettre's default was `[127.0.0.1]` for all).
+    /// network address for one reached through it (it was `[127.0.0.1]` for all).
     #[test]
     fn ehlo_names_this_computers_address_on_the_way() {
         let raw = b"From: z@x.example\r\nTo: a@y.example\r\nSubject: hi\r\n\r\nbody\r\n";
@@ -512,12 +541,17 @@ pub(crate) mod tests {
     /// Plays a scripted SMTP server for one connection on a free local port: greets, then answers
     /// each command line (upper-cased, line end removed) with what `script` returns, until QUIT.
     fn scripted(script: fn(&str) -> &'static str) -> u16 {
+        scripted_bytes(b"220 scripted.test ready\r\n", script)
+    }
+
+    /// [`scripted`], greeting with `greeting` (bytes: a server may write what isn't UTF-8).
+    fn scripted_bytes(greeting: &'static [u8], script: fn(&str) -> &'static str) -> u16 {
         let socket = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         let address = socket.local_addr().unwrap();
         let play = move || {
             let Ok((sock, _)) = socket.accept() else { return };
             let mut out = sock.try_clone().unwrap();
-            let _ = out.write_all(b"220 scripted.test ready\r\n");
+            let _ = out.write_all(greeting);
             for command in BufReader::new(sock).lines().map_while(std::result::Result::ok) {
                 let command = command.to_ascii_uppercase();
                 let answer = script(&command);
@@ -525,7 +559,11 @@ pub(crate) mod tests {
                 if answer == "CLOSE" {
                     break;
                 }
-                let _ = out.write_all(answer.as_bytes());
+                // "LATIN-1:": the rest written as Latin-1, as a server set up in German may.
+                let _ = match answer.strip_prefix("LATIN-1:") {
+                    Some(text) => out.write_all(&text.chars().map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?')).collect::<Vec<u8>>()),
+                    None => out.write_all(answer.as_bytes()),
+                };
                 if command == "QUIT" {
                     break;
                 }
@@ -533,6 +571,35 @@ pub(crate) mod tests {
         };
         std::thread::spawn(play);
         address.port()
+    }
+
+    /// A server whose words aren't UTF-8 (Latin-1, as one set up in German may greet: "Grüß
+    /// Gott") still takes the message (discussion #309): the whole send failed on the greeting
+    /// with "response error: invalid utf-8 sequence", and failed again at each try. Its refusal
+    /// in those words is still a refusal, said as the server put it.
+    #[test]
+    fn a_server_writing_latin_1_is_understood() {
+        let port =
+            scripted_bytes(b"220 mail.firma.example ESMTP Gr\xFC\xDF Gott\r\n", |command| match command.split(' ').next().unwrap_or_default() {
+                "EHLO" => "LATIN-1:250-mail.firma.example schön, Sie zu sehen\r\n250 AUTH PLAIN\r\n",
+                "AUTH" => "235 2.7.0 willkommen\r\n",
+                "DATA" => "354 los\r\n",
+                "QUIT" => "221 2.0.0 tschüss\r\n",
+                _ => "250 2.0.0 gut\r\n",
+            });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        send(&server, "z@x.example", "pw", "z@x.example", &["a@y.example".into()], b"Subject: s\r\n\r\nx\r\n").unwrap();
+
+        let port = scripted_bytes(b"220 mail.firma.example ESMTP\r\n", |command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-mail.firma.example\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 willkommen\r\n",
+            "RCPT" => "LATIN-1:550 5.1.1 Empfänger unbekannt\r\n",
+            "QUIT" => "221 2.0.0 tschüss\r\n",
+            _ => "250 2.0.0 gut\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &["a@y.example".into()], b"Subject: s\r\n\r\nx\r\n").unwrap_err();
+        assert!(matches!(&e, NetError::Smtp(m) if m.contains("Empf") && m.contains("nger unbekannt")), "{e:?}");
     }
 
     /// End to end: the server turns the sender away at MAIL FROM with a 553, which refuses this
@@ -604,18 +671,5 @@ pub(crate) mod tests {
         let server = ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None };
         assert!(matches!(send(&server, "", "", "not an address", &["a@b.c".into()], b""), Err(NetError::Smtp(_))));
         assert!(matches!(send(&server, "", "", "a@b.c", &[], b""), Err(NetError::Smtp(_))));
-    }
-
-    /// The system's roots reach SMTP's TLS, and one the store holds but rustls can't read
-    /// doesn't stop sending: given to lettre as it is, it failed every message to every server.
-    #[test]
-    fn an_unreadable_root_in_the_store_does_not_stop_sending() {
-        use crate::stream::trust::test_certs::{internal_ca, unreadable};
-        use crate::stream::trust::{Distrusted, usable_roots};
-        let store = vec![unreadable(), internal_ca()];
-        assert!(tls_parameters("mail.corp.test", &usable_roots(store.clone(), &Distrusted::new()), false).is_ok());
-        assert!(tls_parameters("mail.corp.test", &[], false).is_ok());
-        // Why the store is sorted first: lettre refuses the lot.
-        assert!(tls_parameters("mail.corp.test", &store, false).is_err());
     }
 }
