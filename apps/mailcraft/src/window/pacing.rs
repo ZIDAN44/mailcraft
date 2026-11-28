@@ -29,6 +29,13 @@ pub(crate) fn present_mode(windows: usize) -> PresentMode {
     if windows > 1 { PresentMode::AutoNoVsync } else { PresentMode::AutoVsync }
 }
 
+/// Whether this pass waits for the screen: with more than one window open, and only the first
+/// pass of a frame (`pass`: egui's index of it). A pass egui runs again in the same frame (a
+/// layout that moved) was held a second time, mid-frame, and a key read behind it.
+pub(crate) fn holds(windows: usize, pass: usize) -> bool {
+    windows > 1 && pass == 0
+}
+
 /// How long to wait before a pass that follows one begun `since` ago, for a screen refreshing
 /// `hz` times a second: what's left of one refresh, nothing once one has gone by.
 pub(crate) fn hold(since: Duration, hz: Option<f64>) -> Duration {
@@ -51,11 +58,13 @@ impl Pacing {
         if let Some(config) = frame.wgpu_surface_config() {
             let mode = present_mode(windows);
             if config.present_mode != mode {
-                log::info!("windows open: {windows}, drawing with {mode:?}");
+                // Asked for: the driver may not have it (wgpu's OpenGL on Linux waits for the
+                // screen whatever is asked; the adapter's backend is in the log at the start).
+                log::info!("windows open: {windows}, asking to draw with {mode:?}");
                 frame.set_wgpu_surface_config(SurfaceConfig { present_mode: mode, ..config });
             }
         }
-        if windows > 1
+        if holds(windows, ctx.current_pass_index())
             && let Some(last) = self.last
         {
             let hz =
@@ -65,7 +74,9 @@ impl Pacing {
                 std::thread::sleep(wait);
             }
         }
-        self.last = Some(Instant::now());
+        if ctx.current_pass_index() == 0 {
+            self.last = Some(Instant::now());
+        }
     }
 }
 
@@ -79,6 +90,15 @@ mod tests {
         assert_eq!(present_mode(1), PresentMode::AutoVsync);
         assert_eq!(present_mode(2), PresentMode::AutoNoVsync);
         assert_eq!(present_mode(5), PresentMode::AutoNoVsync);
+    }
+
+    /// Only a frame's first pass waits, and only with two windows or more: one egui runs again in
+    /// the same frame doesn't wait a second time (issue #287).
+    #[test]
+    fn only_a_frames_first_pass_waits() {
+        assert!(holds(2, 0));
+        assert!(!holds(2, 1), "a pass run again in the same frame");
+        assert!(!holds(1, 0), "one window waits for the screen by itself");
     }
 
     /// The pass waits out the rest of one refresh at the screen's rate (60 Hz when it doesn't say,

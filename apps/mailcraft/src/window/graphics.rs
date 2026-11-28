@@ -152,6 +152,13 @@ fn common_setup(options: &mut eframe::NativeOptions, intel_mac: bool, desktop_gp
     let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup else { return };
     let asked = std::sync::Arc::clone(&setup.device_descriptor);
     setup.device_descriptor = std::sync::Arc::new(move |adapter: &wgpu::Adapter| {
+        // Which adapter, and through which API, is in the log (Windows names its own as it
+        // picks): typing that lagged in a second window on Linux (issue #287) depends on whether
+        // the windows are drawn with Vulkan or OpenGL, and the log didn't say.
+        if !cfg!(windows) {
+            let i = adapter.get_info();
+            log::info!("graphics: drawing with {:?} on {:?} ({:?}), driver {} {}", i.backend, i.name, i.device_type, i.driver, i.driver_info);
+        }
         let mut d = asked(adapter);
         d.required_limits = device_limits(d.required_limits, &adapter.limits());
         d
